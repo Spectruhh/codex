@@ -1,1 +1,1289 @@
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000000000000000000000000000000000000..d3b85b60060bc5bdd04d2bd880ea74c28fac5abc
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1,12 @@
++# Frontend -> service URLs
++NEXT_PUBLIC_AUTH_URL=http://localhost:4101
++NEXT_PUBLIC_SQUADS_URL=http://localhost:4102
++NEXT_PUBLIC_VOICE_URL=http://localhost:4103
++NEXT_PUBLIC_REALTIME_URL=http://localhost:4104
++
++# Service ports
++AUTH_PORT=4101
++SQUADS_PORT=4102
++VOICE_PORT=4103
++REALTIME_PORT=4104
++VOICE_TOKEN_SECRET=voxra-dev-secret
+diff --git a/.github/workflows/ci-cd.yml b/.github/workflows/ci-cd.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..fa6c2f15ade8ca9ced3bd3e743e84f291797b05f
+--- /dev/null
++++ b/.github/workflows/ci-cd.yml
+@@ -0,0 +1,26 @@
++name: Voxra CI/CD
++
++on:
++  push:
++    branches: [main]
++  pull_request:
++
++jobs:
++  quality:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-node@v4
++        with:
++          node-version: 20
++          cache: npm
++      - run: npm ci
++      - run: npm run typecheck
++      - run: npm run build
++
++  deploy:
++    if: github.ref == 'refs/heads/main'
++    needs: quality
++    runs-on: ubuntu-latest
++    steps:
++      - run: echo "Deploy to Cloudflare Pages + AWS service mesh via IaC"
+diff --git a/README b/README
+index 8b137891791fe96927ad78e64b0aad7bded08bdc..a3fc21742b1f150a84d68b689161170ccc226db3 100644
+--- a/README
++++ b/README
+@@ -1 +1,58 @@
++# Voxra.gg
+ 
++Production-focused blueprint and implementation starter for **Voxra**, a premium gamer communication SaaS platform.
++
++## Stack
++- Frontend: Next.js 14 + React 18 + TypeScript
++- Realtime: WebSockets/SSE and WebRTC voice token flow
++- Backend target: Node.js microservices (Phase A scaffold included)
++- Data target: Postgres + Redis (next phase)
++- Edge/hosting target: Cloudflare + AWS
++
++## Included in this repository
++- High-conversion homepage and web app shell (`app/page.tsx`)
++- Dark/light design system (`app/globals.css` + theme toggle)
++- **Phase A working core UI** (`app/beta/page.tsx` + `app/components/PhaseAConsole.tsx`)
++- **Phase A backend services** (`services/*`)
++  - Auth mock OAuth/session service
++  - Squad service (party-up/join/disband)
++  - Voice token service (signed ephemeral tokens)
++  - Realtime service (SSE stream + message post)
++- Product architecture and scale plan (`docs/architecture.md`)
++- API contract starter (`api/openapi.yaml`)
++- Brand/UI kit guidance (`docs/ui-brand-kit.md`)
++- Deployment pipeline (`.github/workflows/ci-cd.yml`)
++- Performance and SEO strategy (`docs/perf-seo.md`)
++
++## Quick start
++```bash
++# optional if registry access works
++npm install
++
++# run backend services for phase A
++npm run services:start
++
++# in another terminal, run frontend
++npm run dev
++```
++
++## Environment
++Copy `.env.example` to `.env.local` for frontend and service configuration.
++
++## Validation
++```bash
++npm run test:domain
++```
++
++## Product modules represented
++- Voice + chat (tokenized room auth, realtime chat)
++- Squad system (party-up, temporary squads, invite/join patterns)
++- Presence service (planned)
++- Communities (planned)
++- Moderation (planned)
++- Monetization (planned)
++- Growth loops (planned)
++- Admin analytics dashboard model
++
++## Scaling targets
++- Designed for millions of concurrent users via sharded realtime gateways, SFU clusters, edge caching, and Redis-backed event fanout.
+diff --git a/api/openapi.yaml b/api/openapi.yaml
+new file mode 100644
+index 0000000000000000000000000000000000000000..f6406fb940e9bcf25cdfda9d7b654873fc3785de
+--- /dev/null
++++ b/api/openapi.yaml
+@@ -0,0 +1,58 @@
++openapi: 3.1.0
++info:
++  title: Voxra API
++  version: 0.1.0
++  description: Core API contract for auth, squads, communities, and moderation.
++servers:
++  - url: https://api.voxra.gg
++paths:
++  /v1/auth/oauth/start:
++    post:
++      summary: Start OAuth flow
++      responses:
++        '200':
++          description: OAuth URL
++  /v1/squads/party-up:
++    post:
++      summary: Create or join temporary squad
++      responses:
++        '200':
++          description: Squad details
++  /v1/voice/rooms/{roomId}/token:
++    post:
++      summary: Issue voice session token
++      parameters:
++        - name: roomId
++          in: path
++          required: true
++          schema: { type: string }
++      responses:
++        '200':
++          description: Ephemeral WebRTC auth token
++  /v1/moderation/reports:
++    post:
++      summary: Submit realtime abuse report
++      responses:
++        '201':
++          description: Report accepted
++  /v1/admin/kpis:
++    get:
++      summary: Admin analytics snapshot
++      responses:
++        '200':
++          description: KPI payload
++components:
++  schemas:
++    Squad:
++      type: object
++      properties:
++        id: { type: string }
++        mode: { type: string }
++        expiresAt: { type: string, format: date-time }
++    KPI:
++      type: object
++      properties:
++        dau: { type: integer }
++        voiceUptime: { type: number }
++        retentionD7: { type: number }
++        mrr: { type: number }
+diff --git a/app/beta/page.tsx b/app/beta/page.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..47de3cddb5d7b818139772887bcb720a25a53d47
+--- /dev/null
++++ b/app/beta/page.tsx
+@@ -0,0 +1,11 @@
++import { PhaseAConsole } from '../components/PhaseAConsole';
++
++export default function BetaPage() {
++  return (
++    <main className="container section">
++      <h1>Voxra Phase A: Working Core</h1>
++      <p>End-to-end slice: OAuth sign-in, Party Up squad creation, voice room token issuance, and realtime room chat.</p>
++      <PhaseAConsole />
++    </main>
++  );
++}
+diff --git a/app/components/PhaseAConsole.tsx b/app/components/PhaseAConsole.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..22bd2a19ddce6b30c1a67e729e0215a3bca59d7c
+--- /dev/null
++++ b/app/components/PhaseAConsole.tsx
+@@ -0,0 +1,118 @@
++'use client';
++
++import { FormEvent, useMemo, useState } from 'react';
++
++type Message = { id: string; userId: string; text: string; createdAt: string };
++
++type Session = { id: string; provider: string; createdAt: string };
++
++const endpoints = {
++  auth: process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:4101',
++  squads: process.env.NEXT_PUBLIC_SQUADS_URL || 'http://localhost:4102',
++  voice: process.env.NEXT_PUBLIC_VOICE_URL || 'http://localhost:4103',
++  realtime: process.env.NEXT_PUBLIC_REALTIME_URL || 'http://localhost:4104'
++};
++
++export function PhaseAConsole() {
++  const [userId, setUserId] = useState('');
++  const [session, setSession] = useState<Session | null>(null);
++  const [squadId, setSquadId] = useState('');
++  const [voiceToken, setVoiceToken] = useState('');
++  const [messages, setMessages] = useState<Message[]>([]);
++  const [chatText, setChatText] = useState('');
++
++  const roomId = useMemo(() => squadId || 'lobby', [squadId]);
++
++  const signIn = async () => {
++    const start = await fetch(`${endpoints.auth}/v1/auth/oauth/start`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ provider: 'google', userId: userId || undefined })
++    }).then((r) => r.json());
++
++    setUserId(start.userId);
++    setSession(start.session);
++
++    await fetch(`${endpoints.auth}/v1/auth/oauth/callback`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ userId: start.userId, provider: 'google', code: 'dev-code' })
++    });
++  };
++
++  const partyUp = async () => {
++    if (!userId) return;
++    const response = await fetch(`${endpoints.squads}/v1/squads/party-up`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ userId, game: 'Valorant', mode: 'Ranked' })
++    }).then((r) => r.json());
++
++    setSquadId(response.squad.id);
++
++    const voice = await fetch(`${endpoints.voice}/v1/voice/rooms/${response.squad.id}/token`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ userId })
++    }).then((r) => r.json());
++
++    setVoiceToken(voice.token);
++  };
++
++  const connectRoom = () => {
++    const stream = new EventSource(`${endpoints.realtime}/v1/realtime/rooms/${roomId}/stream`);
++    stream.onmessage = (event) => {
++      const parsed = JSON.parse(event.data);
++      if (parsed.type === 'bootstrap') setMessages(parsed.messages);
++      if (parsed.type === 'message') setMessages((prev) => [...prev, parsed.message]);
++    };
++  };
++
++  const sendMessage = async (e: FormEvent) => {
++    e.preventDefault();
++    if (!chatText || !userId) return;
++    await fetch(`${endpoints.realtime}/v1/realtime/rooms/${roomId}/messages`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ userId, text: chatText })
++    });
++    setChatText('');
++  };
++
++  return (
++    <section className="grid" style={{ gap: '1rem' }}>
++      <div className="card">
++        <h3>1) OAuth sign-in (dev mock)</h3>
++        <button className="btn btnPrimary" type="button" onClick={signIn}>Sign in with Google</button>
++        <p>User: {userId || 'Not signed in'}</p>
++        <p>Session: {session?.id || 'None'}</p>
++      </div>
++
++      <div className="card">
++        <h3>2) Party Up + voice token</h3>
++        <button className="btn btnPrimary" type="button" onClick={partyUp} disabled={!userId}>Create Ranked Squad</button>
++        <p>Squad ID: {squadId || 'None'}</p>
++        <p>Voice token preview: {voiceToken ? `${voiceToken.slice(0, 36)}...` : 'None'}</p>
++      </div>
++
++      <div className="card">
++        <h3>3) Realtime room chat (SSE)</h3>
++        <button className="btn btnSecondary" type="button" onClick={connectRoom}>Connect room stream</button>
++        <form onSubmit={sendMessage} style={{ marginTop: '.8rem', display: 'flex', gap: '.6rem' }}>
++          <input
++            value={chatText}
++            onChange={(e) => setChatText(e.target.value)}
++            placeholder="Send team comms..."
++            style={{ flex: 1, borderRadius: '.5rem', border: '1px solid #ffffff35', padding: '.55rem .7rem', background: 'transparent', color: 'inherit' }}
++          />
++          <button className="btn btnPrimary" type="submit">Send</button>
++        </form>
++        <div style={{ marginTop: '.8rem' }}>
++          {messages.map((msg) => (
++            <p key={msg.id}><strong>{msg.userId}</strong>: {msg.text}</p>
++          ))}
++        </div>
++      </div>
++    </section>
++  );
++}
+diff --git a/app/components/ThemeToggle.tsx b/app/components/ThemeToggle.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..97e5938e51e16417fb3a6568c64dd15379b25383
+--- /dev/null
++++ b/app/components/ThemeToggle.tsx
+@@ -0,0 +1,26 @@
++'use client';
++
++import { useEffect, useState } from 'react';
++
++export function ThemeToggle() {
++  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
++
++  useEffect(() => {
++    const saved = (localStorage.getItem('voxra-theme') as 'dark' | 'light' | null) ?? 'dark';
++    setTheme(saved);
++    document.documentElement.setAttribute('data-theme', saved);
++  }, []);
++
++  const toggle = () => {
++    const next = theme === 'dark' ? 'light' : 'dark';
++    setTheme(next);
++    localStorage.setItem('voxra-theme', next);
++    document.documentElement.setAttribute('data-theme', next);
++  };
++
++  return (
++    <button className="btn btnSecondary" onClick={toggle} type="button" aria-label="Toggle theme">
++      {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
++    </button>
++  );
++}
+diff --git a/app/dashboard/page.tsx b/app/dashboard/page.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..7a28f8b1ce0aa0d55cd44c12a7ad03ee779c7cde
+--- /dev/null
++++ b/app/dashboard/page.tsx
+@@ -0,0 +1,27 @@
++const metrics = [
++  { label: 'Daily Active Users', value: '182,441' },
++  { label: 'D7 Retention', value: '48.2%' },
++  { label: 'Voice Uptime', value: '99.97%' },
++  { label: 'MRR', value: '$742k' }
++];
++
++export default function DashboardPage() {
++  return (
++    <main className="container section">
++      <h1>Voxra Admin Dashboard</h1>
++      <p>Internal metrics, abuse reports, and revenue tracking.</p>
++      <section className="grid featureGrid">
++        {metrics.map((metric) => (
++          <article className="card" key={metric.label}>
++            <p>{metric.label}</p>
++            <h2>{metric.value}</h2>
++          </article>
++        ))}
++      </section>
++      <section className="card" style={{ marginTop: '1rem' }}>
++        <h3>Abuse Queue</h3>
++        <p>41 open reports • 12 auto-actioned • 3 escalated</p>
++      </section>
++    </main>
++  );
++}
+diff --git a/app/globals.css b/app/globals.css
+new file mode 100644
+index 0000000000000000000000000000000000000000..e865f8693299974efc64328e447b9fe79a9f6367
+--- /dev/null
++++ b/app/globals.css
+@@ -0,0 +1,85 @@
++:root {
++  color-scheme: dark;
++  --bg: #07090f;
++  --surface: #0e131f;
++  --text: #ebf2ff;
++  --text-muted: #99a3b6;
++  --primary: #16d9ff;
++  --secondary: #8b5cf6;
++  --accent: #96ff4f;
++  --ring: rgba(22, 217, 255, 0.45);
++}
++
++[data-theme='light'] {
++  color-scheme: light;
++  --bg: #f7fafe;
++  --surface: #ffffff;
++  --text: #111827;
++  --text-muted: #4b5563;
++  --primary: #007af5;
++  --secondary: #7c3aed;
++  --accent: #4d7c0f;
++  --ring: rgba(0, 122, 245, 0.25);
++}
++
++* { box-sizing: border-box; }
++html, body { margin: 0; padding: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); }
++a { color: inherit; text-decoration: none; }
++
++.container { width: min(1120px, 92vw); margin: 0 auto; }
++.section { padding: 5rem 0; }
++.card { background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid color-mix(in srgb, var(--primary) 22%, #ffffff10); border-radius: 1rem; padding: 1.25rem; }
++.grid { display: grid; gap: 1rem; }
++
++.hero {
++  position: relative;
++  overflow: hidden;
++  border-bottom: 1px solid #ffffff10;
++  background: radial-gradient(circle at 20% 20%, #0f2a3f 0%, transparent 45%), radial-gradient(circle at 80% 0%, #33205e 0%, transparent 30%), var(--bg);
++}
++
++.pill { display: inline-flex; padding: .4rem .8rem; border-radius: 999px; border: 1px solid #ffffff22; color: var(--text-muted); font-size: .85rem; }
++.hero h1 { font-size: clamp(2rem, 5vw, 4rem); margin: .6rem 0 0.7rem; }
++.hero p { max-width: 54ch; color: var(--text-muted); }
++.ctaRow { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: 1.2rem; }
++.btn { border: 1px solid transparent; border-radius: .8rem; padding: .75rem 1rem; font-weight: 600; transition: 180ms ease; }
++.btnPrimary { background: linear-gradient(110deg, var(--primary), color-mix(in srgb, var(--secondary) 65%, var(--primary))); color: #031420; }
++.btnSecondary { background: transparent; border-color: #ffffff33; }
++.btn:hover { transform: translateY(-1px); box-shadow: 0 0 0 .2rem var(--ring); }
++
++.topNav { display:flex; justify-content:space-between; align-items:center; padding:1rem 0; }
++.brand { font-weight: 800; letter-spacing: 0.02em; }
++.brand span { color: var(--primary); }
++.navLinks { display:flex; gap: 1rem; color: var(--text-muted); }
++
++.featureGrid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
++.compare table { width:100%; border-collapse: collapse; }
++.compare th,.compare td { border-bottom: 1px solid #ffffff1f; padding:.7rem; text-align:left; }
++
++.footer { border-top:1px solid #ffffff1a; padding: 2rem 0; color: var(--text-muted); }
++.footer nav { display:flex; gap:1rem; flex-wrap:wrap; }
++
++.mockApp { border-radius: 1rem; border:1px solid #ffffff22; overflow:hidden; }
++.mockHead { display:flex; justify-content:space-between; align-items:center; padding:.7rem 1rem; background:#ffffff12; }
++.mockBody { display:grid; grid-template-columns: 220px 1fr; min-height: 320px; }
++.mockSide { border-right:1px solid #ffffff1a; padding: .9rem; }
++.mockMain { padding:.9rem; display:grid; gap:.7rem; }
++.wave {
++  height: 72px;
++  background: linear-gradient(90deg, transparent 0%, var(--primary) 14%, transparent 28%, var(--secondary) 42%, transparent 56%, var(--accent) 70%, transparent 100%);
++  background-size: 220% 100%;
++  animation: wave 4s linear infinite;
++  filter: blur(1px);
++  opacity: 0.65;
++}
++
++@keyframes wave {
++  from { background-position: 0% 0; }
++  to { background-position: 220% 0; }
++}
++
++@media (max-width: 768px) {
++  .mockBody { grid-template-columns: 1fr; }
++  .mockSide { border-right: 0; border-bottom:1px solid #ffffff1a; }
++  .navLinks { display:none; }
++}
+diff --git a/app/layout.tsx b/app/layout.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..89d3425b30e3279dbf12c03fe9abe0d45d91f9b9
+--- /dev/null
++++ b/app/layout.tsx
+@@ -0,0 +1,24 @@
++import type { Metadata } from 'next';
++import './globals.css';
++
++export const metadata: Metadata = {
++  metadataBase: new URL('https://voxra.gg'),
++  title: 'Voxra.gg | Next-Gen Voice for Gamers',
++  description: 'The fastest way to talk, squad up, and play. Ultra-low latency voice and modern community tools.',
++  openGraph: {
++    title: 'Voxra.gg',
++    description: 'Next-Gen Voice for Gamers',
++    url: 'https://voxra.gg',
++    siteName: 'Voxra',
++    type: 'website'
++  },
++  alternates: { canonical: 'https://voxra.gg' }
++};
++
++export default function RootLayout({ children }: { children: React.ReactNode }) {
++  return (
++    <html lang="en">
++      <body>{children}</body>
++    </html>
++  );
++}
+diff --git a/app/page.tsx b/app/page.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..af1a95398a3ff22447a1edc1569138d85021bd38
+--- /dev/null
++++ b/app/page.tsx
+@@ -0,0 +1,162 @@
++import { ThemeToggle } from './components/ThemeToggle';
++
++const features = [
++  'Crystal-clear voice',
++  '<10ms latency',
++  'Smart noise suppression',
++  'Auto squad detection',
++  'Cross-platform sync',
++  'Zero bloat',
++  'Privacy-first encryption'
++];
++
++const appCapabilities = [
++  {
++    title: 'Voice & Chat',
++    points: ['HD channels', 'Spatial audio', 'Push-to-talk', 'WebRTC backbone', 'Text/GIF/emoji']
++  },
++  {
++    title: 'Squad System',
++    points: ['One-tap Party Up', 'Temporary squads', 'Auto-disband logic', 'Invite links', 'Match voice rooms']
++  },
++  {
++    title: 'Smart Presence',
++    points: ['Game detection', 'Rank/mode metadata', 'Session status', 'Cross-platform activity']
++  },
++  {
++    title: 'Moderation & Safety',
++    points: ['AI toxicity filter', 'Real-time reporting', 'Shadow muting', 'Raid protection']
++  }
++];
++
++export default function Home() {
++  const structuredData = {
++    '@context': 'https://schema.org',
++    '@type': 'SoftwareApplication',
++    name: 'Voxra',
++    applicationCategory: 'CommunicationApplication',
++    operatingSystem: 'Web, iOS, Android, Windows, macOS',
++    offers: {
++      '@type': 'Offer',
++      price: '0',
++      priceCurrency: 'USD'
++    }
++  };
++
++  return (
++    <main>
++      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
++      <header className="hero">
++        <div className="container">
++          <div className="topNav">
++            <div className="brand">Voxra<span>.gg</span></div>
++            <nav className="navLinks">
++              <a href="#features">Features</a>
++              <a href="#demo">Demo</a>
++              <a href="#compare">Compare</a>
++              <a href="#community">Community</a>
++            </nav>
++            <ThemeToggle />
++          </div>
++
++          <section className="section">
++            <div className="pill">Trusted by 100k+ gamers</div>
++            <h1>Next-Gen Voice for Gamers</h1>
++            <p>Ultra-low latency. No clutter. Built for squads. Voxra combines premium voice performance, modern social systems, and privacy-first architecture for competitive and casual players.</p>
++            <div className="ctaRow">
++              <a className="btn btnPrimary" href="#download">Download Voxra</a>
++              <a className="btn btnSecondary" href="/beta">Join the Beta</a>
++            </div>
++            <div className="wave" />
++          </section>
++        </div>
++      </header>
++
++      <section id="social" className="section container">
++        <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
++          <article className="card"><strong>Esports Team Alpha</strong><p>"Voxra audio quality is unreal. We dropped Discord instantly."</p></article>
++          <article className="card"><strong>Streamer NovaFPS</strong><p>"No latency spikes mid-scrim. This is what voice should feel like."</p></article>
++        </div>
++      </section>
++
++      <section id="features" className="section container">
++        <h2>Feature Stack</h2>
++        <div className="grid featureGrid">
++          {features.map((feature) => (
++            <article key={feature} className="card">{feature}</article>
++          ))}
++        </div>
++      </section>
++
++      <section id="demo" className="section container">
++        <h2>Interactive Product Demo Mock</h2>
++        <div className="mockApp">
++          <div className="mockHead"><strong>Squad: Ranked Rush</strong><span>Live: 8 players</span></div>
++          <div className="mockBody">
++            <div className="mockSide">
++              <p># strategy-room</p>
++              <p># clips</p>
++              <p># post-match</p>
++              <p>🎧 Voice Room: Match 11</p>
++            </div>
++            <div className="mockMain">
++              <div className="card">Voice Activity: <strong>22ms jitter • 8ms avg latency</strong></div>
++              <div className="card">Party Up detected: Apex squad + Valorant duo ready to merge.</div>
++              <div className="card">Auto-moderation: 3 toxic messages blocked, 0 false positives (simulated).</div>
++            </div>
++          </div>
++        </div>
++      </section>
++
++      <section id="compare" className="section container compare">
++        <h2>Voxra vs Discord</h2>
++        <table>
++          <thead>
++            <tr><th>Metric</th><th>Voxra</th><th>Discord</th></tr>
++          </thead>
++          <tbody>
++            <tr><td>Voice latency</td><td>&lt;10ms target</td><td>Higher variance</td></tr>
++            <tr><td>UI complexity</td><td>Squad-first minimal UX</td><td>Server-heavy layout</td></tr>
++            <tr><td>Mobile UX</td><td>Optimized for one-thumb control</td><td>Desktop-first patterns</td></tr>
++            <tr><td>Privacy model</td><td>E2E + device/session controls</td><td>Partial controls</td></tr>
++          </tbody>
++        </table>
++      </section>
++
++      <section id="community" className="section container">
++        <h2>Community Pulse</h2>
++        <div className="grid featureGrid">
++          <article className="card"><h3>Live Activity</h3><p>12,442 active voice users • 1,205 squads in-session</p></article>
++          <article className="card"><h3>Featured Hubs</h3><p>Voxra Ranked Arena, Creator Lab, Tactics Council</p></article>
++          <article className="card"><h3>Trending Squads</h3><p>Night Raid (COD), Prism Stack (Valorant), Rift Hunters (LoL)</p></article>
++        </div>
++      </section>
++
++      <section id="platform" className="section container">
++        <h2>Core Platform Modules</h2>
++        <div className="grid featureGrid">
++          {appCapabilities.map((cap) => (
++            <article className="card" key={cap.title}>
++              <h3>{cap.title}</h3>
++              <ul>
++                {cap.points.map((point) => <li key={point}>{point}</li>)}
++              </ul>
++            </article>
++          ))}
++        </div>
++      </section>
++
++      <footer className="footer">
++        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
++          <div>
++            <strong>Voxra</strong>
++            <p>The fastest way to talk, squad up, and play.</p>
++          </div>
++          <nav>
++            <a href="#">Docs</a><a href="#">Careers</a><a href="#">Status</a><a href="#">API</a><a href="#">Press</a><a href="#">Legal</a>
++          </nav>
++        </div>
++      </footer>
++    </main>
++  );
++}
+diff --git a/docs/architecture.md b/docs/architecture.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..f27e5d0f960abe495c2e79aafba169d4083e04da
+--- /dev/null
++++ b/docs/architecture.md
+@@ -0,0 +1,33 @@
++# Voxra Architecture Blueprint
++
++## Core services
++1. **Identity Service**: OAuth (Google, Apple, Steam, Xbox, PSN), 2FA, device/session logs.
++2. **Presence Service**: Game auto-detection, rank/mode updates, session state.
++3. **Squad Service**: One-tap party up, ephemeral squads, auto-disband, invite links.
++4. **Community Service**: Public/private hubs, roles, threads, events, polls.
++5. **Moderation Service**: AI toxicity scoring, raid heuristics, report triage.
++6. **Billing Service**: Voxra+ subscriptions, boosts, marketplace purchases.
++7. **Media Service**: Clip ingestion/transcoding/CDN delivery.
++8. **Admin Analytics Service**: Retention, uptime, abuse, revenue KPIs.
++
++## Realtime and voice plane
++- **WebSocket Gateways** for chat/presence events.
++- **WebRTC SFU clusters** for low-latency voice routing.
++- Regional voice edges with geo affinity and failover.
++- Adaptive bitrate and jitter buffer management.
++
++## Data architecture
++- Postgres: users, subscriptions, squads, communities, events.
++- Redis: presence cache, pub/sub fanout, rate limits, anti-raid counters.
++- Object storage: media clips, profile assets.
++
++## Security
++- E2E message encryption and secure voice key exchange.
++- Session/device management with anomaly detection.
++- Enforced audit logging for moderation/admin actions.
++
++## Reliability
++- SLA targets: 99.99% control-plane, 99.95% media-plane.
++- Blue/green deploys + canary by region.
++- Synthetic monitoring for P50/P95 join-to-audio metrics.
++
+diff --git a/docs/perf-seo.md b/docs/perf-seo.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..f683980d346f1d43b62a77a91dfdb42437f8412b
+--- /dev/null
++++ b/docs/perf-seo.md
+@@ -0,0 +1,22 @@
++# Performance + SEO Plan
++
++## Performance SLOs
++- Lighthouse >= 95
++- TTI < 1.5s (homepage)
++- Lazy-loading for below-fold modules
++- Edge caching for static + public API payloads
++- Offline fallback shell via service worker strategy
++
++## Optimization checklist
++- Route-based code splitting
++- `next/image` and AVIF/WebP media
++- HTTP/3 + Brotli + immutable asset cache headers
++- Priority hints for above-the-fold UI
++- Preconnect to auth/media domains
++
++## SEO and growth
++- Structured data (SoftwareApplication + Organization)
++- Programmatic landing pages by game title
++- Blog and changelog for index freshness
++- App preview pages and press kit assets
++
+diff --git a/docs/phase-a.md b/docs/phase-a.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..ae221b1f33890dd5bf08659b0bcfe32450b4992f
+--- /dev/null
++++ b/docs/phase-a.md
+@@ -0,0 +1,21 @@
++# Phase A Delivery (Implemented)
++
++This repository now includes a concrete vertical slice:
++
++1. OAuth-style sign-in handshake (dev mock)
++2. Party Up squad creation
++3. Voice room token issuance
++4. Realtime room chat stream
++
++## Service map
++- `services/auth/server.js` on `:4101`
++- `services/squads/server.js` on `:4102`
++- `services/voice-token/server.js` on `:4103`
++- `services/realtime/server.js` on `:4104`
++
++## Frontend entrypoint
++- `app/beta/page.tsx`
++- `app/components/PhaseAConsole.tsx`
++
++## Next implementation step
++Swap in Postgres + Redis persistence and replace mock OAuth callback with real provider exchange.
+diff --git a/docs/ui-brand-kit.md b/docs/ui-brand-kit.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..8fac7c4175414989548f343e3d99887d1d623390
+--- /dev/null
++++ b/docs/ui-brand-kit.md
+@@ -0,0 +1,27 @@
++# UI + Brand Kit
++
++## Brand
++- Name: Voxra
++- Positioning: The fastest way to talk, squad up, and play.
++- Tone: Confident, futuristic, clean, gamer-native.
++
++## Color tokens
++- Primary: Electric Blue / Neon Cyan
++- Secondary: Deep Charcoal / Black
++- Accent: Purple / Lime
++
++## Typography
++- Headlines: Geometric sans (Inter/Satoshi/SF Pro style)
++- Body: Readable sans-serif, high-contrast sizing.
++
++## Components
++- Buttons: Primary gradient + quiet secondary.
++- Cards: Elevated dark panels, subtle border glow.
++- Hero visuals: waveform/network mesh motifs.
++- Data modules: KPI chips + compact activity rows.
++
++## UX principles
++- Low cognitive load, fast path to joining voice.
++- Mobile-first control density.
++- Motion: subtle 60fps transitions, no distracting bloat.
++
+diff --git a/next-env.d.ts b/next-env.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..84ab714bdef68903103f153806cfe168ecbb94f8
+--- /dev/null
++++ b/next-env.d.ts
+@@ -0,0 +1,4 @@
++/// <reference types="next" />
++/// <reference types="next/image-types/global" />
++
++// NOTE: This file should not be edited
+diff --git a/next.config.mjs b/next.config.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4ab1aaef94a6dd472e94f580407dd203cee7bf06
+--- /dev/null
++++ b/next.config.mjs
+@@ -0,0 +1,9 @@
++/** @type {import('next').NextConfig} */
++const nextConfig = {
++  reactStrictMode: true,
++  experimental: {
++    optimizePackageImports: ["react"]
++  }
++};
++
++export default nextConfig;
+diff --git a/package.json b/package.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..efb9bdbac7f871979f69405df730a962cfd2e1e9
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,27 @@
++{
++  "name": "voxra-gg",
++  "version": "1.0.0",
++  "private": true,
++  "scripts": {
++    "dev": "next dev",
++    "build": "next build",
++    "start": "next start",
++    "lint": "next lint",
++    "typecheck": "tsc --noEmit",
++    "services:start": "node services/run-all.js",
++    "test:domain": "node --test tests/domain.test.js"
++  },
++  "dependencies": {
++    "next": "14.2.5",
++    "react": "18.3.1",
++    "react-dom": "18.3.1"
++  },
++  "devDependencies": {
++    "@types/node": "20.14.11",
++    "@types/react": "18.3.3",
++    "@types/react-dom": "18.3.0",
++    "eslint": "8.57.0",
++    "eslint-config-next": "14.2.5",
++    "typescript": "5.5.3"
++  }
++}
+diff --git a/scripts/deploy-plan.md b/scripts/deploy-plan.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d3c791b7ba67fd682a3ceed40cd262d064f737b
+--- /dev/null
++++ b/scripts/deploy-plan.md
+@@ -0,0 +1,7 @@
++# Deployment pipeline plan
++
++1. Build and test Next.js web shell.
++2. Publish static/SSR frontend to Cloudflare.
++3. Deploy API + realtime services to AWS (ECS/EKS).
++4. Roll voice SFU clusters regionally with canary traffic split.
++5. Run synthetic checks and rollback on SLO regression.
+diff --git a/services/auth/server.js b/services/auth/server.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..9f197c80003bc1ba75e2c52191f4cfdbbefa7674
+--- /dev/null
++++ b/services/auth/server.js
+@@ -0,0 +1,48 @@
++const http = require('http');
++const { json, notFound, readBody, handleCorsPreflight } = require('../common/http');
++const { store } = require('../common/store');
++const { createSession } = require('../lib/domain');
++
++const port = Number(process.env.AUTH_PORT || 4101);
++
++const server = http.createServer(async (req, res) => {
++  if (handleCorsPreflight(req, res)) return;
++  if (req.method === 'POST' && req.url === '/v1/auth/oauth/start') {
++    const body = await readBody(req);
++    const provider = body.provider || 'google';
++    const userId = body.userId || `usr_${Math.random().toString(36).slice(2, 8)}`;
++    const session = createSession({ userId, provider });
++    const sessions = store.sessionsByUser.get(userId) || [];
++    sessions.push(session);
++    store.sessionsByUser.set(userId, sessions);
++    return json(res, 200, {
++      authUrl: `https://auth.voxra.gg/${provider}/authorize?user=${userId}`,
++      userId,
++      session
++    });
++  }
++
++  if (req.method === 'POST' && req.url === '/v1/auth/oauth/callback') {
++    const body = await readBody(req);
++    const userId = body.userId;
++    if (!userId) return json(res, 400, { error: 'userId_required' });
++    const sessions = store.sessionsByUser.get(userId) || [];
++    return json(res, 200, {
++      accessToken: `voxra_${Buffer.from(`${userId}:${Date.now()}`).toString('base64url')}`,
++      user: { id: userId, gamerTag: `VXR-${userId.slice(-4)}` },
++      sessions
++    });
++  }
++
++  if (req.method === 'GET' && req.url.startsWith('/v1/auth/sessions/')) {
++    const userId = req.url.split('/').pop();
++    return json(res, 200, { userId, sessions: store.sessionsByUser.get(userId) || [] });
++  }
++
++  return notFound(res);
++});
++
++server.listen(port, () => {
++  // eslint-disable-next-line no-console
++  console.log(`[auth-service] running on :${port}`);
++});
+diff --git a/services/common/http.js b/services/common/http.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..2c230fb5396bea784b500fd7ed4b9e7ebb69170a
+--- /dev/null
++++ b/services/common/http.js
+@@ -0,0 +1,37 @@
++const json = (res, status, payload) => {
++  res.writeHead(status, {
++    'Content-Type': 'application/json; charset=utf-8',
++    'Access-Control-Allow-Origin': '*',
++    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
++    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
++  });
++  res.end(JSON.stringify(payload));
++};
++
++const notFound = (res) => json(res, 404, { error: 'not_found' });
++
++const readBody = async (req) => {
++  const chunks = [];
++  for await (const chunk of req) chunks.push(chunk);
++  if (!chunks.length) return {};
++  const raw = Buffer.concat(chunks).toString('utf8');
++  return raw ? JSON.parse(raw) : {};
++};
++
++const handleCorsPreflight = (req, res) => {
++  if (req.method !== 'OPTIONS') return false;
++  res.writeHead(204, {
++    'Access-Control-Allow-Origin': '*',
++    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
++    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
++  });
++  res.end();
++  return true;
++};
++
++module.exports = {
++  json,
++  notFound,
++  readBody,
++  handleCorsPreflight
++};
+diff --git a/services/common/store.js b/services/common/store.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..3abad97f47e070242f7e07f9d260f2f75279c4ac
+--- /dev/null
++++ b/services/common/store.js
+@@ -0,0 +1,22 @@
++const store = {
++  sessionsByUser: new Map(),
++  squadsById: new Map(),
++  roomMessages: new Map(),
++  roomStreams: new Map()
++};
++
++const getMessages = (roomId) => {
++  if (!store.roomMessages.has(roomId)) {
++    store.roomMessages.set(roomId, []);
++  }
++  return store.roomMessages.get(roomId);
++};
++
++const getStreams = (roomId) => {
++  if (!store.roomStreams.has(roomId)) {
++    store.roomStreams.set(roomId, new Set());
++  }
++  return store.roomStreams.get(roomId);
++};
++
++module.exports = { store, getMessages, getStreams };
+diff --git a/services/lib/domain.js b/services/lib/domain.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..eb88dd0f0e96743f3e6930438f971570344f997e
+--- /dev/null
++++ b/services/lib/domain.js
+@@ -0,0 +1,47 @@
++const crypto = require('crypto');
++
++const nowIso = () => new Date().toISOString();
++
++const createSession = ({ userId, provider }) => ({
++  id: crypto.randomUUID(),
++  userId,
++  provider,
++  createdAt: nowIso(),
++  device: 'web',
++  ip: '127.0.0.1'
++});
++
++const createSquad = ({ userId, game, mode, ttlMinutes = 180 }) => {
++  const expiresAt = new Date(Date.now() + ttlMinutes * 60_000).toISOString();
++  return {
++    id: `sqd_${crypto.randomUUID().slice(0, 8)}`,
++    game,
++    mode,
++    expiresAt,
++    createdAt: nowIso(),
++    members: [userId],
++    status: 'active'
++  };
++};
++
++const joinSquad = (squad, userId) => {
++  if (!squad.members.includes(userId)) squad.members.push(userId);
++  return squad;
++};
++
++const disbandSquad = (squad) => ({ ...squad, status: 'disbanded', disbandedAt: nowIso() });
++
++const signVoiceToken = ({ roomId, userId, secret, ttlSeconds = 600 }) => {
++  const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
++  const payload = Buffer.from(JSON.stringify({ roomId, userId, exp })).toString('base64url');
++  const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
++  return `${payload}.${signature}`;
++};
++
++module.exports = {
++  createSession,
++  createSquad,
++  joinSquad,
++  disbandSquad,
++  signVoiceToken
++};
+diff --git a/services/realtime/server.js b/services/realtime/server.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..7186d21b702733eb6d959b94bec7075f61ee4cce
+--- /dev/null
++++ b/services/realtime/server.js
+@@ -0,0 +1,61 @@
++const http = require('http');
++const { json, notFound, readBody, handleCorsPreflight } = require('../common/http');
++const { getMessages, getStreams } = require('../common/store');
++
++const port = Number(process.env.REALTIME_PORT || 4104);
++
++const pushEvent = (roomId, event) => {
++  const clients = getStreams(roomId);
++  for (const res of clients) {
++    res.write(`data: ${JSON.stringify(event)}\n\n`);
++  }
++};
++
++const server = http.createServer(async (req, res) => {
++  if (handleCorsPreflight(req, res)) return;
++
++  if (req.method === 'GET' && req.url.startsWith('/v1/realtime/rooms/') && req.url.endsWith('/stream')) {
++    const roomId = req.url.split('/')[4];
++    res.writeHead(200, {
++      'Content-Type': 'text/event-stream',
++      'Cache-Control': 'no-cache',
++      Connection: 'keep-alive',
++      'Access-Control-Allow-Origin': '*'
++    });
++    const streams = getStreams(roomId);
++    streams.add(res);
++
++    res.write(`data: ${JSON.stringify({ type: 'bootstrap', messages: getMessages(roomId) })}\n\n`);
++    req.on('close', () => streams.delete(res));
++    return;
++  }
++
++  if (req.method === 'POST' && req.url.startsWith('/v1/realtime/rooms/') && req.url.endsWith('/messages')) {
++    const roomId = req.url.split('/')[4];
++    const body = await readBody(req);
++    if (!body.userId || !body.text) return json(res, 400, { error: 'userId_text_required' });
++
++    const message = {
++      id: `msg_${Math.random().toString(36).slice(2, 8)}`,
++      userId: body.userId,
++      text: String(body.text).slice(0, 800),
++      createdAt: new Date().toISOString()
++    };
++    const messages = getMessages(roomId);
++    messages.push(message);
++    pushEvent(roomId, { type: 'message', message });
++    return json(res, 201, { message });
++  }
++
++  if (req.method === 'GET' && req.url.startsWith('/v1/realtime/rooms/') && req.url.endsWith('/messages')) {
++    const roomId = req.url.split('/')[4];
++    return json(res, 200, { messages: getMessages(roomId) });
++  }
++
++  return notFound(res);
++});
++
++server.listen(port, () => {
++  // eslint-disable-next-line no-console
++  console.log(`[realtime-service] running on :${port}`);
++});
+diff --git a/services/run-all.js b/services/run-all.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..a9b3f8a1470af039ef46f1bf0cfa22975b6252ec
+--- /dev/null
++++ b/services/run-all.js
+@@ -0,0 +1,18 @@
++const { spawn } = require('child_process');
++
++const services = [
++  'services/auth/server.js',
++  'services/squads/server.js',
++  'services/voice-token/server.js',
++  'services/realtime/server.js'
++];
++
++const children = services.map((entry) => spawn(process.execPath, [entry], { stdio: 'inherit' }));
++
++const shutdown = () => {
++  for (const child of children) child.kill('SIGTERM');
++  process.exit(0);
++};
++
++process.on('SIGINT', shutdown);
++process.on('SIGTERM', shutdown);
+diff --git a/services/squads/server.js b/services/squads/server.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..83c1530e4d0d4a284206e53ea50b78ed9fa31ff8
+--- /dev/null
++++ b/services/squads/server.js
+@@ -0,0 +1,53 @@
++const http = require('http');
++const { json, notFound, readBody, handleCorsPreflight } = require('../common/http');
++const { store } = require('../common/store');
++const { createSquad, joinSquad, disbandSquad } = require('../lib/domain');
++
++const port = Number(process.env.SQUADS_PORT || 4102);
++
++const server = http.createServer(async (req, res) => {
++  if (handleCorsPreflight(req, res)) return;
++
++  if (req.method === 'POST' && req.url === '/v1/squads/party-up') {
++    const body = await readBody(req);
++    if (!body.userId || !body.game || !body.mode) {
++      return json(res, 400, { error: 'userId_game_mode_required' });
++    }
++
++    const squad = createSquad({ userId: body.userId, game: body.game, mode: body.mode });
++    store.squadsById.set(squad.id, squad);
++    return json(res, 200, { squad });
++  }
++
++  if (req.method === 'POST' && req.url.startsWith('/v1/squads/') && req.url.endsWith('/join')) {
++    const parts = req.url.split('/');
++    const squadId = parts[3];
++    const body = await readBody(req);
++    const squad = store.squadsById.get(squadId);
++    if (!squad) return json(res, 404, { error: 'squad_not_found' });
++    joinSquad(squad, body.userId);
++    return json(res, 200, { squad });
++  }
++
++  if (req.method === 'POST' && req.url.startsWith('/v1/squads/') && req.url.endsWith('/disband')) {
++    const parts = req.url.split('/');
++    const squadId = parts[3];
++    const squad = store.squadsById.get(squadId);
++    if (!squad) return json(res, 404, { error: 'squad_not_found' });
++    const next = disbandSquad(squad);
++    store.squadsById.set(squadId, next);
++    return json(res, 200, { squad: next });
++  }
++
++  if (req.method === 'GET' && req.url.startsWith('/v1/squads/')) {
++    const squadId = req.url.split('/')[3];
++    return json(res, 200, { squad: store.squadsById.get(squadId) || null });
++  }
++
++  return notFound(res);
++});
++
++server.listen(port, () => {
++  // eslint-disable-next-line no-console
++  console.log(`[squad-service] running on :${port}`);
++});
+diff --git a/services/voice-token/server.js b/services/voice-token/server.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..ff8ef21ac572bcad2bd8055242511b053bb05a56
+--- /dev/null
++++ b/services/voice-token/server.js
+@@ -0,0 +1,26 @@
++const http = require('http');
++const { json, notFound, readBody, handleCorsPreflight } = require('../common/http');
++const { signVoiceToken } = require('../lib/domain');
++
++const port = Number(process.env.VOICE_PORT || 4103);
++const secret = process.env.VOICE_TOKEN_SECRET || 'voxra-dev-secret';
++
++const server = http.createServer(async (req, res) => {
++  if (handleCorsPreflight(req, res)) return;
++
++  if (req.method === 'POST' && req.url.startsWith('/v1/voice/rooms/') && req.url.endsWith('/token')) {
++    const parts = req.url.split('/');
++    const roomId = parts[4];
++    const body = await readBody(req);
++    if (!body.userId) return json(res, 400, { error: 'userId_required' });
++    const token = signVoiceToken({ roomId, userId: body.userId, secret });
++    return json(res, 200, { roomId, token, provider: 'webrtc', expiresIn: 600 });
++  }
++
++  return notFound(res);
++});
++
++server.listen(port, () => {
++  // eslint-disable-next-line no-console
++  console.log(`[voice-token-service] running on :${port}`);
++});
+diff --git a/tests/domain.test.js b/tests/domain.test.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..fc2b89e6e95eac5dd78061d6ac3f501ee037a2e1
+--- /dev/null
++++ b/tests/domain.test.js
+@@ -0,0 +1,22 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const { createSquad, joinSquad, signVoiceToken } = require('../services/lib/domain');
++
++test('createSquad creates active squad with member', () => {
++  const squad = createSquad({ userId: 'usr_1', game: 'Valorant', mode: 'Ranked' });
++  assert.equal(squad.status, 'active');
++  assert.deepEqual(squad.members, ['usr_1']);
++  assert.equal(squad.game, 'Valorant');
++});
++
++test('joinSquad appends distinct members', () => {
++  const squad = createSquad({ userId: 'usr_1', game: 'Apex', mode: 'Trios' });
++  joinSquad(squad, 'usr_2');
++  joinSquad(squad, 'usr_2');
++  assert.deepEqual(squad.members, ['usr_1', 'usr_2']);
++});
++
++test('signVoiceToken returns signed payload.signature', () => {
++  const token = signVoiceToken({ roomId: 'room1', userId: 'usr_1', secret: 's3cr3t' });
++  assert.equal(token.split('.').length, 2);
++});
+diff --git a/tsconfig.json b/tsconfig.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..e0d07bdadd2c60c11b4a16fcd016ca720ceae8bf
+--- /dev/null
++++ b/tsconfig.json
+@@ -0,0 +1,24 @@
++{
++  "compilerOptions": {
++    "target": "ES2022",
++    "lib": ["dom", "dom.iterable", "es2022"],
++    "allowJs": false,
++    "skipLibCheck": true,
++    "strict": true,
++    "noEmit": true,
++    "esModuleInterop": true,
++    "module": "esnext",
++    "moduleResolution": "bundler",
++    "resolveJsonModule": true,
++    "isolatedModules": true,
++    "jsx": "preserve",
++    "incremental": true,
++    "plugins": [{ "name": "next" }],
++    "baseUrl": ".",
++    "paths": {
++      "@/*": ["./*"]
++    }
++  },
++  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
++  "exclude": ["node_modules"]
++}
 
